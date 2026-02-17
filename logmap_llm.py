@@ -353,6 +353,8 @@ print("Step 3: Consult Oracle for mappings to ask")
 print('- - - - - - - - - - - - - - - - - - - - - - - - - - -')
 print()
 
+oracle_params = {} # mpt oracle parameters (in case of branches)
+
 api_key = config['oracle']['openrouter_apikey']
 model_name = config['oracle']['openrouter_model_name']
 base_url = config['oracle'].get('base_url', None)
@@ -375,15 +377,17 @@ if config['pipeline']['consult_oracle'] == 'consult':
     print(f'Consulting LLM Oracle {model_name}')
     print('with user prompts for mappings to ask ...')
     print()
-    m_ask_df_ext = oc.consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
-                                                         api_key,
-                                                         model_name,
-                                                         max_workers,
-                                                         m_ask_df,
-                                                         base_url=base_url,
-                                                         enable_thinking=enable_thinking,
-                                                         interaction_style=interaction_style,
-                                                         developer_prompt_text=developer_prompt_text)
+    m_ask_df_ext, oracle_params = oc.consult_oracle_for_mappings_to_ask(
+        m_ask_oracle_user_prompts,
+        api_key,
+        model_name,
+        max_workers,
+        m_ask_df,
+        base_url=base_url,
+        enable_thinking=enable_thinking,
+        interaction_style=interaction_style,
+        developer_prompt_text=developer_prompt_text
+    )
 elif config['pipeline']['consult_oracle'] == 'reuse':
     print('Reusing existing LLM Oracle predictions')
     # reuse Oracle predictions created previously and saved in a file on disk
@@ -480,6 +484,33 @@ elif config['pipeline']['refine_alignment'] == 'bypass':
 else:
     raise ValueError(f"Value for refine_alignment not recognised: {config['pipeline']['refine_alignment']}")
 
+# %% [markdown]
+# ---
+# 
+# ## Pipeline step 5: Reporting Metrics & Experimental Settings
+# 
+# ---
+
+print(f"Experimental Settings:")
+
+print(f"[PARAM] Model Name: {model_name}")
+print(f"[PARAM] Interaction Style: {oracle_params.get('interaction_style', 'N/A')}")
+print(f"[PARAM] M_ask (LLM) Temp: {oracle_params.get('temperature', 'N/A')}")
+print(f"[PARAM] M_ask (LLM) Top-p: {oracle_params.get('top_p', 'N/A')}")
+print(f"[PARAM] M_ask (LLM) Reasoning Effort: {oracle_params.get('reasoning_effort', 'N/A')}")
+print(f"[PARAM] Max Tokens: {oracle_params.get('max_completion_tokens', 'N/A')}")
+print(f"[PARAM] Thinking Enabled: {oracle_params.get('enable_thinking', 'N/A')}")
+print(f"[PARAM] Max Wrker Threeads: {oracle_params.get('max_workers', max_workers)}")
+print(f"[PARAM] Base URL: {base_url}")
+print(f"[PARAM] Developer Prompt Specified: {dev_prompt_name}")
+print(f"[PARAM] User Prompt Template Specified: {oupt_name}")
+print("------------------------------------------")
+print(f'Alignment task name: {task_name}')
+print(f"Source ontology: {onto_src_filepath}")
+print(f"Target ontology: {onto_tgt_filepath}")
+print("------------------------------------------")
+print("EVALUATION:") # TODO: convert manual conversion script/s into end-to-end logmap-llm
+print("------------------------------------------")
 
 # %%
 

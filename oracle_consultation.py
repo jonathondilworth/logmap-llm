@@ -185,6 +185,9 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
     m_ask_df_ext : pandas DataFrame
         A copy of input m_ask_df extended with new columns for LLM
         predictions and related attributes
+    oracle_params : dict 
+        The parameters used to run the LogMap-LLM Pipeline (for reporting)
+        (TODO: modify how this works, use a better pattern)
     '''
 
     # Set the style to be used for interacting with the LLM Oracle
@@ -236,6 +239,24 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
     # from the developer prompt registry in developer_prompts.py
     if developer_prompt_text is not None:
         llm_oracle.add_developer_message(developer_prompt_text)
+
+    # JD: allows us to return the parameters that have been set
+    # back to logmap_llm.py to then print to std::out.
+    # TODO: probably consider a nicer way to log results.
+    # probably use an actual python logger object/pattern.
+    oracle_params = {
+        "model_name": model_name,
+        "base_url": base_url,
+        "interaction_style": interaction_style_name,
+        "temperature": kwargs.get("temperature"),
+        "top_p": kwargs.get("top_p"),
+        "reasoning_effort": kwargs.get("reasoning_effort"),
+        "max_completion_tokens": kwargs.get("max_completion_tokens"),
+        "enable_thinking": kwargs.get("enable_thinking"),
+        "response_format": kwargs.get("response_format", "N/A"),
+        "developer_prompt_set": developer_prompt_text is not None,
+        "max_workers": max_workers,
+    }
 
     # container for LLM mapping predictions: 
     # [source, target, prediction, confidence]
@@ -292,7 +313,7 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
 
     
     if abort_consultations:
-        return None
+        return None, oracle_params
 
     #
     # record the LLM prediction information with their associated
@@ -354,5 +375,5 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
     m_ask_df_ext['Oracle_input_tokens'] = ordered_token_usage_input
     m_ask_df_ext['Oracle_output_tokens'] = ordered_token_usage_output
 
-    return m_ask_df_ext
+    return m_ask_df_ext, oracle_params
 
