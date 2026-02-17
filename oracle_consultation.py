@@ -306,23 +306,37 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
     ordered_token_usage_input = []
     ordered_token_usage_output = []
 
-    # iterate over the mappings_to_ask 
+    # iterate over the mappings_to_ask
+    skipped_count = 0 # log any skipped (due to owlready2 issue)
+
     for row in m_ask_df.iterrows():
         # get the URIs of the two entities involved in the current mapping
         row_series = row[1]
         src_entity_uri, tgt_entity_uri = row_series.iloc[0], row_series.iloc[1]
         
         # get the correct LLM prediction for the current mapping_to_ask
+        # JD: some mappings may have been skipped during prompt building due
+        # to undiscoverable class URIs \w owlready2 — these won't have predictions
         idx = entity_pair_to_idx[(src_entity_uri, tgt_entity_uri)]
-        mp = mapping_predictions[idx]   # [source, target, prediction, confidence]
+        if idx is not None:
+            mp = mapping_predictions[idx]   # [source, target, prediction, confidence]
         
-        # store the binary prediction (True/False) and prediction confidence 
-        ordered_llm_mapping_predictions.append(mp[2])
-        ordered_llm_prediction_confidences.append(mp[3])
+            # store the binary prediction (True/False) and prediction confidence 
+            ordered_llm_mapping_predictions.append(mp[2])
+            ordered_llm_prediction_confidences.append(mp[3])
         
-        # order the token usage correspondingly
-        ordered_token_usage_input.append(tokens_usage[idx][0])
-        ordered_token_usage_output.append(tokens_usage[idx][1])
+            # order the token usage correspondingly
+            ordered_token_usage_input.append(tokens_usage[idx][0])
+            ordered_token_usage_output.append(tokens_usage[idx][1])
+        else:
+            skipped_count += 1
+            ordered_llm_mapping_predictions.append("skipped")
+            ordered_llm_prediction_confidences.append(str(np.nan))
+            ordered_token_usage_input.append(np.nan)
+            ordered_token_usage_output.append(np.nan)
+
+    if skipped_count > 0:
+        print(f"[WARNING] {skipped_count} mappings were skipped.")
 
     # initialise an extended dataframe with a copy of the original
     m_ask_df_ext = m_ask_df.copy()
