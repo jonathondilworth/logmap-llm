@@ -8,7 +8,7 @@ Note: LLM Oracle 'developer' prompts are managed elsewhere.
 #%%
 
 from onto_access import OntologyAccess
-from onto_object import OntologyEntryAttr
+from onto_object import OntologyEntryAttr, ClassNotFoundError
 from tqdm import tqdm
 from constants import PAIRS_SEPARATOR
 
@@ -94,6 +94,9 @@ def build_oracle_user_prompts(oupt_name, onto_src_filepath,
     # initialise a container for the prompts
     m_ask_oracle_user_prompts = {}
 
+    # track skipped mappings
+    skipped_mappings = []
+
     # iterate over the mappings in m_ask
     # (each 'row' is an (index, Series) tuple)
     for row in tqdm(m_ask_df.iterrows(), total=m_ask_df.shape[0], 
@@ -103,20 +106,40 @@ def build_oracle_user_prompts(oupt_name, onto_src_filepath,
         row_series = row[1]
         src_entity_uri, tgt_entity_uri = row_series.iloc[0], row_series.iloc[1]
 
-        # get attributes of the ontological neighbourhood of the source 
-        # and target entities, subsets of which are likely fillers for the
-        # prompt template being used to build the user prompts
-        src_entity_onto_attrs = OntologyEntryAttr(src_entity_uri, OA_source_onto)
-        tgt_entity_onto_attrs = OntologyEntryAttr(tgt_entity_uri, OA_target_onto)
+        try:
 
-        # build the oracle user prompt for the current mapping
-        oracle_user_prompt = prompt_function(src_entity_onto_attrs, 
-                                             tgt_entity_onto_attrs)
-        
-        # store the oracle user prompt for the current mapping
-        key = src_entity_uri + PAIRS_SEPARATOR + tgt_entity_uri 
-        m_ask_oracle_user_prompts[key] = oracle_user_prompt
+            # get attributes of the ontological neighbourhood of the source 
+            # and target entities, subsets of which are likely fillers for the
+            # prompt template being used to build the user prompts
+            src_entity_onto_attrs = OntologyEntryAttr(src_entity_uri, OA_source_onto) # pyright: ignore[reportPossiblyUnboundVariable]
+            tgt_entity_onto_attrs = OntologyEntryAttr(tgt_entity_uri, OA_target_onto) # pyright: ignore[reportPossiblyUnboundVariable]
+
+            # build the oracle user prompt for the current mapping
+            oracle_user_prompt = prompt_function(src_entity_onto_attrs, 
+                                                tgt_entity_onto_attrs)
+            
+            # store the oracle user prompt for the current mapping
+            key = src_entity_uri + PAIRS_SEPARATOR + tgt_entity_uri 
+            m_ask_oracle_user_prompts[key] = oracle_user_prompt
+
+        except ClassNotFoundError as e:
+            # thrown if a class URI exists in LogMap's M_ask but cannot be 
+            # resolved by owlready2. This typically occurs with locality-enriched
+            # Bio-ML ontologies where classes are present in the RDF graph
+            # which are not enumerated as named classes (TODO: pinpoint issue).
+            skipped_mappings.append({
+                "src": src_entity_uri,
+                "tgt": tgt_entity_uri,
+                "reason": str(e),
+            })
+            tqdm.write(f"  WARNING: Skipping mapping — {e}")
     
+    if skipped_mappings:
+        print(f"[WARNING] Skipped {len(skipped_mappings)} mappings.")
+        # TODO: include additional information about which exactly mappings
+    else:
+        print(f"All {m_ask_df.shape[0]} mappings resolved successfully.")
+
     return m_ask_oracle_user_prompts
 
 

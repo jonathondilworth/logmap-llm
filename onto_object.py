@@ -6,6 +6,17 @@ import owlready2
 from onto_access import OntologyAccess
 
 
+class ClassNotFoundError(Exception):
+    """Raised when a class URI cannot be resolved in the ontology.
+    
+    This typically occurs with locality-enriched Bio-ML ontologies where
+    owlready2's class enumeration does not surface all classes present in
+    the RDF triple store. LogMap may reference such classes in M_ask, but
+    they cannot be used for prompt building.
+    """
+    pass
+
+
 class OntologyEntryAttr:
     def __init__(
         self, class_uri: str | None, onto: OntologyAccess, onto_entry: owlready2.ThingClass | None = None
@@ -15,7 +26,9 @@ class OntologyEntryAttr:
             self.thing_class = onto.getClassByURI(class_uri)
         else:
             self.thing_class = onto_entry
-        assert self.thing_class is not None, f"Class {class_uri} not found in ontology {onto.get_ontology_iri()}"
+
+        if self.thing_class is None:
+            raise ClassNotFoundError(f"Class {class_uri} not found in ontology.")
 
         self.annotation: dict[str : set | owlready2.ThingClass] = {"class": self.thing_class}
         self.onto: OntologyAccess = onto
