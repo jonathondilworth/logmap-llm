@@ -145,20 +145,26 @@ class OntologyAccess:
                 logging.info("Classifying with HermiT failed.")
 
         self.graph = default_world.as_rdflib_graph()
+
+        # JD: builds an iri-key index for direct access/lookup in O(1)
+        # for when getEntityByURI or getClassByURI is called
+        self._uri_to_class = {cls.iri: cls for cls in self.onto.classes()}
+        self._uri_to_entity = dict(self._uri_to_class)
+        for prop in self.onto.properties():
+            self._uri_to_entity[prop.iri] = prop
+
         # DH: This used to be a logging.info() statement. But for
         # LogMap-LLM we have promoted it to a print() statement, so
         # the user can always see how big the ontology is that is
         # being processed and prepared from prompt building.
         print(f"There are {len(self.graph)} triples in the ontology")
+        print(f"Indexed {len(self._uri_to_class)} classes")
 
     def getOntology(self) -> owlready2.Ontology:
         return self.onto
 
     def getClassByURI(self, uri: str) -> owlready2.EntityClass:
-        for cls in list(self.getOntology().classes()):
-            if cls.iri == uri:
-                return cls
-        return None
+        return self._uri_to_class.get(uri)
 
     def getClassByName(self, name: str) -> owlready2.EntityClass:
         for cls in list(self.getOntology().classes()):
@@ -167,13 +173,7 @@ class OntologyAccess:
         return None
 
     def getEntityByURI(self, uri: str) -> owlready2.EntityClass:
-        for cls in list(self.getOntology().classes()):
-            if cls.iri == uri:
-                return cls
-        for prop in list(self.getOntology().properties()):
-            if prop.iri == uri:
-                return prop
-        return None
+        return self._uri_to_entity.get(uri)
 
     def getEntityByName(self, name: str) -> owlready2.EntityClass:
         for cls in list(self.getOntology().classes()):

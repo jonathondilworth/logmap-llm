@@ -276,7 +276,7 @@ elif config['pipeline']['align_ontologies'] == 'bypass':
     print('Bypassing initial LogMap alignment')
     m_ask_df = None
 else:
-    raise ValueError(f'Value for align_ontologies not recognised: {config['pipeline']['align_ontologies']}')
+    raise ValueError(f"Value for align_ontologies not recognised: {config['pipeline']['align_ontologies']}")
 
 if m_ask_df is not None:
     print()
@@ -320,7 +320,7 @@ elif config['pipeline']['build_oracle_prompts'] == 'bypass':
     print('Bypassing use of LLM Oracle user prompts')
     m_ask_oracle_user_prompts = None
 else:
-    raise ValueError(f'Value for build_oracle_prompts not recognised: {config['pipeline']['build_oracle_prompts']}')
+    raise ValueError(f"Value for build_oracle_prompts not recognised: {config['pipeline']['build_oracle_prompts']}")
 
 if m_ask_oracle_user_prompts is not None:
     print()
@@ -389,7 +389,7 @@ elif config['pipeline']['consult_oracle'] == 'bypass':
     print('Bypassing Oracle consultations')
     m_ask_df_ext = None
 else:
-    raise ValueError(f'Value for consult_oracle not recognised: {config['pipeline']['consult_oracle']}')
+    raise ValueError(f"Value for consult_oracle not recognised: {config['pipeline']['consult_oracle']}")
 
 
 if m_ask_df_ext is not None:
@@ -465,7 +465,7 @@ if config['pipeline']['refine_alignment'] == 'refine':
 elif config['pipeline']['refine_alignment'] == 'bypass':
     print('Bypassing alignment refinement')
 else:
-    raise ValueError(f'Value for refine_alignment not recognised: {config['pipeline']['refine_alignment']}')
+    raise ValueError(f"Value for refine_alignment not recognised: {config['pipeline']['refine_alignment']}")
 
 
 # %%
