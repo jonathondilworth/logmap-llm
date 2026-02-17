@@ -155,7 +155,8 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
                                        m_ask_df,
                                        base_url=None,
                                        enable_thinking=None,
-                                       interaction_style=None):
+                                       interaction_style=None,
+                                       developer_prompt_text=None):
     '''
     Consult an LLM Oracle for each candidate mapping in a set of
     candidate mappings.
@@ -231,8 +232,10 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
     llm_oracle = OracleConsultationManager_OpenAI(api_key, model_name, 
                                                   interaction_style_name, **kwargs)
 
-    # TODO: externalise the choice of developer message in the config.toml file
-    llm_oracle.add_developer_message(dp.DEV_PROMPT_CLASS_EQUIVALENCE)
+    # loads the choice of developer message in the config.toml file
+    # from the developer prompt registry in developer_prompts.py
+    if developer_prompt_text is not None:
+        llm_oracle.add_developer_message(developer_prompt_text)
 
     # container for LLM mapping predictions: 
     # [source, target, prediction, confidence]

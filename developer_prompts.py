@@ -29,3 +29,22 @@ DEV_PROMPT_BIOMEDICAL = "You are a biomedical ontology expert. Your task is to a
 
 DEV_PROMPT_BIOMEDICAL_EQUIV_SYNONYMS = "You are a domain expert assisting in entity alignment across biomedical ontologies. Each entity may include synonyms and category-level relationships. Use synonym information and parent class semantics to decide whether the two entities are semantically equivalent. Be precise."
 
+#
+# JD: the developer prompt registry allows for the above-defined
+# (developer/system) prompts to be extended, registered and 
+# specified within the config TOML when running logmap-llm.
+# Use 'none' to explicitly disable the developer prompt, as
+# some do not support this feature.
+DEVELOPER_PROMPT_REGISTRY = {
+    "generic": DEV_PROMPT_GENERIC,
+    "class_equivalence": DEV_PROMPT_CLASS_EQUIVALENCE,
+    "biomedical": DEV_PROMPT_BIOMEDICAL,
+    "biomedical_equiv_synonyms": DEV_PROMPT_BIOMEDICAL_EQUIV_SYNONYMS,
+    "none": None,
+}
+
+
+def get_developer_prompt(name: str) -> str | None:
+    if name not in DEVELOPER_PROMPT_REGISTRY:
+        raise ValueError(f"Developer prompt '{name}' not found in registry.")
+    return DEVELOPER_PROMPT_REGISTRY[name]

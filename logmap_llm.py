@@ -23,7 +23,8 @@ import tomllib
 import pandas as pd
 import json
 import oracle_prompt_building as opb
-import oracle_consultation as oc 
+import oracle_consultation as oc
+import developer_prompts as dp
 
 # %%
 # arrange for modules to be reloaded automatically, so changes are
@@ -358,6 +359,11 @@ base_url = config['oracle'].get('base_url', None)
 enable_thinking = config['oracle'].get('enable_thinking', None)
 interaction_style = config['oracle'].get('interaction_style', None)
 
+# JD: resolves dev prompt specified in config from the registry
+# in developer_prompts.py
+dev_prompt_name = config['oracle'].get('oracle_dev_prompt_template_name', 'class_equivalence')
+developer_prompt_text = dp.get_developer_prompt(dev_prompt_name)
+
 # TODO: externalise max_workers in the config.toml file, so the user
 # has control without having to modify Python code
 max_workers = 2
@@ -376,7 +382,8 @@ if config['pipeline']['consult_oracle'] == 'consult':
                                                          m_ask_df,
                                                          base_url=base_url,
                                                          enable_thinking=enable_thinking,
-                                                         interaction_style=interaction_style)
+                                                         interaction_style=interaction_style,
+                                                         developer_prompt_text=developer_prompt_text)
 elif config['pipeline']['consult_oracle'] == 'reuse':
     print('Reusing existing LLM Oracle predictions')
     # reuse Oracle predictions created previously and saved in a file on disk

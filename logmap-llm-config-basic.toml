@@ -41,7 +41,17 @@ interaction_style = 'openrouter' # or use `'openai_chat_completions_parse_struct
 [oracle]
 openrouter_apikey = 'your api key'
 openrouter_model_name = 'arcee-ai/trinity-mini:free'
-oracle_dev_prompt_template_name = 'not in use yet; anything will do'
+
+# `oracle_dev_prompt_template_name` is included to allow for selection
+# of a system/developer prompt from developer_prompts.py
+# options include:
+#   - DEV_PROMPT_GENERIC
+#   - DEV_PROMPT_CLASS_EQUIVALENCE
+#   - DEV_PROMPT_BIOMEDICAL
+#   - DEV_PROMPT_BIOMEDICAL_EQUIV_SYNONYMS
+
+oracle_dev_prompt_template_name = 'class_equivalence'
+
 oracle_user_prompt_template_name = 'one_level_of_parents_and_synonyms'
 local_oracle_predictions_dirpath = '/Users/dave/research/logmap-usage/local-oracle/'
 
@@ -57,6 +67,7 @@ local_oracle_predictions_dirpath = '/Users/dave/research/logmap-usage/local-orac
 #openrouter_apikey = 'EMPTY'
 #enable_thinking = false
 #interaction_style = 'vllm'
+#openrouter_model_name = 'Qwen/Qwen3-235B-A22B-GPTQ-Int4'
 
 [outputs]
 logmapllm_output_dirpath = '/Users/dave/research/logmap-usage/logmapllm-outputs/'
