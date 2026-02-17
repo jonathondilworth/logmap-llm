@@ -354,6 +354,9 @@ print()
 
 api_key = config['oracle']['openrouter_apikey']
 model_name = config['oracle']['openrouter_model_name']
+base_url = config['oracle'].get('base_url', None)
+enable_thinking = config['oracle'].get('enable_thinking', None)
+interaction_style = config['oracle'].get('interaction_style', None)
 
 # TODO: externalise max_workers in the config.toml file, so the user
 # has control without having to modify Python code
@@ -370,7 +373,10 @@ if config['pipeline']['consult_oracle'] == 'consult':
                                                          api_key,
                                                          model_name,
                                                          max_workers,
-                                                         m_ask_df)
+                                                         m_ask_df,
+                                                         base_url=base_url,
+                                                         enable_thinking=enable_thinking,
+                                                         interaction_style=interaction_style)
 elif config['pipeline']['consult_oracle'] == 'reuse':
     print('Reusing existing LLM Oracle predictions')
     # reuse Oracle predictions created previously and saved in a file on disk

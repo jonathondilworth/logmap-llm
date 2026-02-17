@@ -5,6 +5,7 @@ This module contains OracleConsultationManagers.
 from openai import OpenAI
 from pydantic import BaseModel
 from constants import BinaryOutputFormat, LLMCallOutput, TokensUsage
+import json
 
 
 class OracleConsultationManager_OpenAI:
@@ -50,7 +51,7 @@ class OracleConsultationManager_OpenAI:
         #  Responses API is 'https://openrouter.ai/api/v1/responses'.)
         # TODO: externalise the base_url in config-basic.toml and let the user decide;
         # we don't want or need to force them to use OpenRouter
-        self.base_url = "https://openrouter.ai/api/v1"
+        self.base_url = kwargs.get("base_url", "https://openrouter.ai/api/v1")
 
         if api_key is None:
             raise ValueError('OpenRouter API key required')
@@ -273,6 +274,25 @@ class OracleConsultationManager_OpenAI:
         #for key, value in kwargs.items():
         #    setattr(self, key, value)
 
+        # - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+        # setting to enable the model's internal thinking/reasoning
+        # chain (Chain-of-Thought), i.e., some models (e.g. Qwen3)
+        # have thinking mode enabled by default, which produces lengthy
+        # reasoning chains/traces before the visible response. However,
+        # for simple binary classification tasks (e.g., A equiv B;
+        # where A, B are atomic) during ontology alignment, this
+        # may waste tokens and incur compute (slow).
+        # - -
+        # set to False to disable thinking (recommended at present)
+        # set to True to leave thinking mde enabled
+        # set to None to set the reciever decide...
+        # - -
+        # This is passed as extra_body to vLLM via:
+        #   chat_template_kwargs={"enable_thinking": False}
+        self.enable_thinking = kwargs.get("enable_thinking", None)
+
+
     def add_developer_message(self, message: str) -> None:
         '''
         Add a developer message (an instructions message) to the list of API messages.
@@ -337,10 +357,71 @@ class OracleConsultationManager_OpenAI:
         LLMCallOutput : Wrapper for the response message, usage, logprobs, and parsed output.
         '''
 
-        if self.interaction_style_name == 'openai_chat_completions_parse_structured_output':
-             return self.consult_oracle_openai_chat_completions_parse_structured_output(message)
+        open_router_aliases = ['openrouter', 'openai_chat_completions_parse_structured_output']
+
+        if self.interaction_style_name in open_router_aliases:
+            return self.consult_oracle_openai_chat_completions_parse_structured_output(message)
+        elif self.interaction_style_name == 'vllm':
+            return self.consult_oracle_openai_chat_completions_create_output(message)
         else:
-            raise ValueError(f'Interaction style name not recognised: {self.interaction_style_name}')
+            raise ValueError(f"Interaction style not recognised: {self.interaction_style_name}")
+
+
+    def build_base_kwargs(self, prompt):
+        '''
+        Build the common kwargs dict shared by both
+        consult_oracle_openai_chat_completions_parse_structured_output and
+        consult_oracle_openai_chat_completions_create_output paths.
+        '''
+        messages = [*self.messages, self.build_api_message("user", prompt)]
+
+        kwargs = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "logprobs": self.logprobs,
+            "top_logprobs": self.top_logprobs,
+        }
+
+        # JD: for models with built-in thinking/CoT (e.g. Qwen3)
+        # pass enable_thinking via extra_body to control whether
+        # the model produces internal reasoning chains
+        if self.enable_thinking is not None:
+            kwargs["extra_body"] = {
+                "chat_template_kwargs": {
+                    "enable_thinking": self.enable_thinking
+                }
+            }
+
+        return kwargs
+
+
+    def extract_response(self, response, parsed_output):
+        '''
+        Extract the common fields from an API response into an LLMCallOutput.
+        '''
+        # get the raw response message from the LLM Oracle; this raw
+        # response may not satisfy our requirement for a one-word,
+        # binary, true/false prediction regarding the candidate mapping;
+        # we focus more intently on the parsed_output
+        output_message = response.choices[0].message.content
+
+        usage = TokensUsage(
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
+        try:
+            logprobs = response.choices[0].logprobs.model_dump()["content"]
+        except AttributeError:
+            logprobs = []
+
+        return LLMCallOutput(
+            message=output_message,
+            usage=usage,
+            logprobs=logprobs,
+            parsed=parsed_output,
+        )
 
 
     def consult_oracle_openai_chat_completions_parse_structured_output(self, prompt):
@@ -365,54 +446,70 @@ class OracleConsultationManager_OpenAI:
         '''
         try:
             # finalise the list of api messages for the interaction with an LLM
-            messages = [*self.messages, self.build_api_message("user", prompt)]
-
-            # assemble the configuration parameter settings
-            # for the LLM interaction
-            llm_interaction_kwargs = {
-                "model": self.model_name,
-                "messages": messages,
-                "temperature": self.temperature,
-                "top_p": self.top_p,
-                "reasoning_effort": self.reasoning_effort,
-                "max_completion_tokens": self.max_completion_tokens,
-                "response_format": self.response_format,
-                "logprobs": self.logprobs,
-                "top_logprobs": self.top_logprobs
-            }
+            # and assemble the base configuration parameter settings for the LLM
+            # interaction, then add parse path-specific parameters
+            llm_interaction_kwargs = self.build_base_kwargs(prompt)
+            llm_interaction_kwargs["max_completion_tokens"] = self.max_completion_tokens
+            llm_interaction_kwargs["response_format"] = self.response_format
+            # the reasoning_effort is specific to OpenAI/OpenRouter
+            if self.reasoning_effort and self.reasoning_effort != 'none':
+                llm_interaction_kwargs["reasoning_effort"] = self.reasoning_effort
 
             # consult the LLM Oracle regarding the current mapping 
             response = self.client.chat.completions.parse(**llm_interaction_kwargs)
 
-            #
             # extract and prepare the elements of the LLM's response
             # that are of interest
-            #
-
-            # get the raw response message from the LLM Oracle; this raw 
-            # response may not satisfy our requirement for a one-word, 
-            # binary, true/false prediction regarding the candidate mapping;
-            # we focus more intently on the parsed_output(see below)
-            output_message = response.choices[0].message.content
-
-            usage = TokensUsage(
-                input_tokens=response.usage.prompt_tokens,
-                output_tokens=response.usage.completion_tokens,
-            )
-            try:
-                logprobs = response.choices[0].logprobs.model_dump()["content"]
-            except AttributeError:
-                logprobs = []
-            
             parsed_output = response.choices[0].message.parsed
 
-            return LLMCallOutput(message=output_message, 
-                                 usage=usage, 
-                                 logprobs=logprobs, 
-                                 parsed=parsed_output)
+            return self.extract_response(response, parsed_output)
 
         except Exception as e:
             raise e
+
+
+    def consult_oracle_openai_chat_completions_create_output(self, prompt):
+        '''
+        Consult via OpenAI's create() method with JSON schema guided decoding.
+        Works with vLLM and other OpenAI-compatible local endpoints.
+        '''
+        # build init params for LLM response
+        llm_interaction_kwargs = self.build_base_kwargs(prompt)
+
+        # note: vLLM uses max_tokens rather than max_completion_tokens
+        llm_interaction_kwargs["max_tokens"] = self.max_completion_tokens
+
+        # convert Pydantic model to JSON schema for response_format
+        if hasattr(self.response_format, 'model_json_schema'):
+            schema = self.response_format.model_json_schema()
+            llm_interaction_kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": self.response_format.__name__,
+                    "strict": True,
+                    "schema": schema,
+                }
+            }
+        else:
+            llm_interaction_kwargs["response_format"] = self.response_format
+
+        response = self.client.chat.completions.create(**llm_interaction_kwargs)
+
+        # Parse the JSON response manually
+        raw_content = response.choices[0].message.content
+        try:
+            parsed_dict = json.loads(raw_content)
+            parsed_output = self.response_format(**parsed_dict)
+        except (json.JSONDecodeError, Exception):
+            lower = raw_content.strip().lower()
+            if 'true' in lower:
+                parsed_output = BinaryOutputFormat(answer=True)
+            elif 'false' in lower:
+                parsed_output = BinaryOutputFormat(answer=False)
+            else:
+                raise ValueError(f"Could not parse LLM response as true/false: {raw_content[:200]}")
+
+        return self.extract_response(response, parsed_output)
 
 
     def clear_messages(self) -> None:

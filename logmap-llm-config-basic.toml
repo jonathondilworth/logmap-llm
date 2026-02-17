@@ -36,6 +36,7 @@ onto_source_filepath = '/Users/dave/research/logmap-usage/ontologies/mouse.owl'
 onto_target_filepath = '/Users/dave/research/logmap-usage/ontologies/human.owl'
 generate_extended_mappings_to_ask_oracle = false
 logmap_parameters_dirpath = ''
+interaction_style = 'openrouter' # or use `'openai_chat_completions_parse_structured_output'`
 
 [oracle]
 openrouter_apikey = 'your api key'
@@ -43,6 +44,19 @@ openrouter_model_name = 'arcee-ai/trinity-mini:free'
 oracle_dev_prompt_template_name = 'not in use yet; anything will do'
 oracle_user_prompt_template_name = 'one_level_of_parents_and_synonyms'
 local_oracle_predictions_dirpath = '/Users/dave/research/logmap-usage/local-oracle/'
+
+# For use of vLLM and local LLM inference, set:
+#   - the base_url to the address at which the vLLM instance is running
+#   - provide the model name via (confusingly - TODO fix) 'openrouter_model_name'
+#     for example: `openrouter_model_name = 'Qwen/Qwen3-235B-A22B-GPTQ-Int4'`
+#   - generally, we would set the 'openrouter_apikey' to be 'EMPTY' in this case
+#   - set the 'thinking_mode' to a boolean (true or false)
+#   - and set the interaction style to 'vllm'
+
+#base_url = 'http://localhost:8000/v1'
+#openrouter_apikey = 'EMPTY'
+#enable_thinking = false
+#interaction_style = 'vllm'
 
 [outputs]
 logmapllm_output_dirpath = '/Users/dave/research/logmap-usage/logmapllm-outputs/'

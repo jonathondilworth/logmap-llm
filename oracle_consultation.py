@@ -152,7 +152,10 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
                                        api_key,
                                        model_name,
                                        max_workers,
-                                       m_ask_df):
+                                       m_ask_df,
+                                       base_url=None,
+                                       enable_thinking=None,
+                                       interaction_style=None):
     '''
     Consult an LLM Oracle for each candidate mapping in a set of
     candidate mappings.
@@ -186,10 +189,9 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
     # Set the style to be used for interacting with the LLM Oracle
     # for the current alignment task.  (Choice of API, choice of how
     # to use that API, approach to structured outputs, etc..)
-    # For now, there is only one choice!
-    # TODO: externalise this choice in the config.toml file; but in the
-    # expert config.toml file, not the basic config file
-    interaction_style_name = 'openai_chat_completions_parse_structured_output'
+    if interaction_style is None:
+        interaction_style = 'openai_chat_completions_parse_structured_output'
+    interaction_style_name = interaction_style
 
     # TODO: consider externalising all of these LLM Oracle config parameters,
     # but in a 2nd config.toml file --- a config file for detailed control
@@ -212,6 +214,17 @@ def consult_oracle_for_mappings_to_ask(m_ask_oracle_user_prompts,
         "max_completion_tokens": 1000,
         "response_format": BinaryOutputFormat # BinaryOutputFormatWithReasoning
     }
+
+    # if a custom base_url was provided (e.g. for a local vLLM server),
+    # pass it through to the consultation manager
+    if base_url:
+        kwargs["base_url"] = base_url
+
+    # Control model thinking/CoT mode. When set to False, disables
+    # internal reasoning chains on models like Qwen3, significantly
+    # reducing latency and token usage for binary classification tasks.
+    if enable_thinking is not None:
+        kwargs["enable_thinking"] = enable_thinking
 
     # instantiate a fresh Oracle consultation manager to conduct the
     # Oracle consultations for the set of candidate mappings in m_ask
