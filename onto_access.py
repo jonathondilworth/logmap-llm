@@ -11,7 +11,7 @@ import owlready2
 # this commented-out import altogether.
 #import rdflib
 
-from owlready2 import default_world, get_ontology, sync_reasoner, sync_reasoner_pellet
+from owlready2 import sync_reasoner, sync_reasoner_pellet
 
 
 class Reasoner(Enum):
@@ -96,6 +96,13 @@ class OntologyAccess:
     def __init__(self, urionto: str, annotate_on_init: bool = True) -> None:
         logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.WARNING)
         self.urionto = str(urionto)
+        # JD: each `OntologyAccess`` instance is assigned its own isolated 
+        # World (using an independent in-memory SQLite quadstore; this 
+        # prevents shared-state issues (i.e., global entity cache issues,
+        # and importantly: rdflib store lock contention) that caused 
+        # intermittent problems previously when multiple `OntologyAccess`
+        # objects were created in the same process using a shared default_world.
+        self.world = owlready2.World()
         if annotate_on_init:
             self.load_ontology()
             self.indexAnnotations()
@@ -104,7 +111,7 @@ class OntologyAccess:
         return self.urionto
 
     def load_ontology(self, reasoner: Reasoner = Reasoner.NONE, memory_java: str = "10240") -> None:
-        self.onto: owlready2.Ontology = get_ontology(self.urionto).load()
+        self.onto:owlready2.Ontology = self.world.get_ontology(self.urionto).load()
         owlready2.JAVA_MEMORY = memory_java
         # DH: If we set log level here, then the 2nd call we make
         # to this function, to load the 2nd (target) ontology, writes
@@ -123,7 +130,7 @@ class OntologyAccess:
                     # Is this wrt data assertions? Check if necessary
                     # infer_property_values = True, infer_data_property_values = True
                     logging.info("Classifying ontology with Pellet...")
-                    sync_reasoner_pellet()  # it does add inferences to ontology
+                    sync_reasoner_pellet(x=self.world)  # it does add inferences to ontology
                     unsat = len(list(self.onto.inconsistent_classes()))
                     logging.info("Ontology successfully classified.")
                     if unsat > 0:
@@ -136,7 +143,7 @@ class OntologyAccess:
             try:
                 with self.onto:  # it does add inferences to ontology
                     logging.info("Classifying ontology with HermiT...")
-                    sync_reasoner()  # HermiT doe snot work very well....
+                    sync_reasoner(x=self.world)  # HermiT doe snot work very well....
                     unsat = len(list(self.onto.inconsistent_classes()))
                     logging.info("Ontology successfully classified.")
                     if unsat > 0:
@@ -144,7 +151,7 @@ class OntologyAccess:
             except owlready2.OwlReadyOntologyParsingError:
                 logging.info("Classifying with HermiT failed.")
 
-        self.graph = default_world.as_rdflib_graph()
+        self.graph = self.world.as_rdflib_graph()
 
         # JD: builds an iri-key index for direct access/lookup in O(1)
         # for when getEntityByURI or getClassByURI is called
