@@ -1,22 +1,10 @@
-# %% [markdown]
-# ---
-#
-# ### Python script driver for LogMap-LLM
+# Python script driver for LogMap-LLM
 # 
 # This Python script driver for LogMap-LLM provides a command-line,
 # non-interactive LogMap-LLM user experience. You launch LogMap-LLM
 # at the command line and it does everything for you, writing its
 # output to the console.
-#
-# A Jupyter notebook driver for LogMap-LLM also exists. It provides
-# an interactive, Python-programmer LogMap-LLM user experience.
-# 
-# ---
 
-# %% [markdown]
-# Basic imports
-
-# %%
 import os
 import os.path
 import tomllib
@@ -26,17 +14,6 @@ import oracle_prompt_building as opb
 import oracle_consultation as oc
 import developer_prompts as dp
 
-# %%
-# arrange for modules to be reloaded automatically, so changes are
-# recognised seamlessly
-#%load_ext autoreload
-#%autoreload 2
-
-# %% [markdown]
-# JPype imports
-
-# %%
-# Import the module
 import jpype
 
 # Allow Java modules to be imported
@@ -45,56 +22,48 @@ import jpype.imports
 # Import all standard Java types into the global scope
 from jpype.types import *
 
-# %% [markdown]
-# Load the LogMap-LLM configuration file
-
-# %%
-with open("logmap-llm-config-basic.toml", mode="rb") as fp:
+# load config
+with open("test_config.toml", mode="rb") as fp:
     config = tomllib.load(fp)
 
-# %% [markdown]
-# Display the configuration parameter settings
 
-# %%
-#print(f'task name: {config['alignmentTask']['task_name']}')
-#print(f'onto source: {config['alignmentTask']['onto_source_filepath']}')
-#print(f'onto target: {config['alignmentTask']['onto_target_filepath']}')
-#print(f'extended mappings_to_ask: {config['alignmentTask']['generate_extended_mappings_to_ask_oracle']}')
-#print(f'logmap_parameters_dirpath: {config['alignmentTask']['logmap_parameters_dirpath']}')
-#print()
-#print(f'openrouter apikey: {config['oracle']['openrouter_apikey']}')
-#print(f'openrouter LLM model name: {config['oracle']['openrouter_model_name']}')
-#print(f'oracle dev prompt template: {config['oracle']['oracle_dev_prompt_template_name']}')
-#print(f'oracle user prompt template: {config['oracle']['oracle_user_prompt_template_name']}')
-#print()
-#print(f'logmapllm output dirpath: {config['outputs']['logmapllm_output_dirpath']}')
-#print(f'logmap initial alignment output dirpath: {config['outputs']['logmap_initial_alignment_output_dirpath']}')
-#print(f'logmap refined alignment output dirpath: {config['outputs']['logmap_refined_alignment_output_dirpath']}')
-#print()
-#print(f'align ontologies: {config['pipeline']['align_ontologies']}')
-#print(f'build oracle prompts: {config['pipeline']['build_oracle_prompts']}')
-#print(f'consult oracle: {config['pipeline']['consult_oracle']}')
-#print(f'refine alignment: {config['pipeline']['refine_alignment']}')
+print(f"task name: {config['alignmentTask']['task_name']}")
+print(f"onto source: {config['alignmentTask']['onto_source_filepath']}")
+print(f"onto target: {config['alignmentTask']['onto_target_filepath']}")
+print(f"extended mappings_to_ask: {config['alignmentTask']['generate_extended_mappings_to_ask_oracle']}")
+print(f"logmap_parameters_dirpath: {config['alignmentTask']['logmap_parameters_dirpath']}")
+print()
+print(f"openrouter apikey: {config['oracle']['openrouter_apikey']}")
+print(f"openrouter LLM model name: {config['oracle']['model_name']}")
+print(f"oracle dev prompt template: {config['oracle']['oracle_dev_prompt_template_name']}")
+print(f"oracle user prompt template: {config['oracle']['oracle_user_prompt_template_name']}")
+print()
+print(f"logmapllm output dirpath: {config['outputs']['logmapllm_output_dirpath']}")
+print(f"logmap initial alignment output dirpath: {config['outputs']['logmap_initial_alignment_output_dirpath']}")
+print(f"logmap refined alignment output dirpath: {config['outputs']['logmap_refined_alignment_output_dirpath']}")
+print()
+print(f"align ontologies: {config['pipeline']['align_ontologies']}")
+print(f"build oracle prompts: {config['pipeline']['build_oracle_prompts']}")
+print(f"consult oracle: {config['pipeline']['consult_oracle']}")
+print(f"refine alignment: {config['pipeline']['refine_alignment']}")
 
+# import sys
+# sys.exit()
 
-# %% [markdown]
-# Build JVM classpath and JVM options
-
-# %% [markdown]
-# TODO: when LogMap-LLM is a package, we'll want to discover and set LogMap the dirpath automatically somehow
-
-# %%
 # TODO: decide the best way to set the logmap_dirpath
 #logmap_dirpath = '/Users/davidherron/research/logmap-20251230/'
 logmap_dirpath = os.path.join(os.getcwd(), 'logmap')
+
 
 # path to main LogMap jar file
 logmap_jar = os.path.join(logmap_dirpath, 'logmap-matcher-4.0.jar')
 jpype.addClassPath(logmap_jar)
 
+
 # path to LogMap dependency jar files
 logmap_dep = os.path.join(logmap_dirpath, 'java-dependencies/*')
 jpype.addClassPath(logmap_dep)
+
 
 # LogMap jvm options
 jvmOptions = [
@@ -104,10 +73,8 @@ jvmOptions = [
     "--add-opens=java.base/java.lang=ALL-UNNAMED"
 ]
 
-# %% [markdown]
-# Check if a JVM (Java Virtual Machine) is running
 
-# %%
+# Check if a JVM (Java Virtual Machine) is running
 if jpype.isJVMStarted():
     print("JPype JVM running unexpectedly; version:", jpype.getJVMVersion())
     print()
@@ -117,17 +84,13 @@ if jpype.isJVMStarted():
     print()
     raise RuntimeError('Unexpected system condition encountered')
 
-# %% [markdown]
-# Start a JVM
 
-# %%
+# Start a JVM
 if not jpype.isJVMStarted():
     jpype.startJVM(*jvmOptions)
 
-# %% [markdown]
-# Confirm a JVM is running
 
-# %%
+# Confirm a JVM is running
 if not jpype.isJVMStarted():
     print('Problem: JPype JVM not running')
     print()
@@ -137,60 +100,38 @@ if not jpype.isJVMStarted():
     print()
     raise RuntimeError('Unexpected system condition encountered')
 
-
-# %% [markdown]
-# ---
-# 
-# Now that we have imported JPype and started a JVM, we can import and call Java classes.
-# 
-# ---
-
-# %% [markdown]
 # Java imports for basic LogMap usage
-
-# %%
 from uk.ac.ox.krr.logmap2 import LogMapLLM_Interface
 
-# %% [markdown]
 # Python imports that contain Java imports
-
-# %%
 import bridging as br
 
-# %% [markdown]
 # Prepare the filepaths of the source and target ontologies the way LogMap expects 
-
-# %%
 task_name = config['alignmentTask']['task_name']
 onto_src_filepath = config['alignmentTask']['onto_source_filepath']
 onto_tgt_filepath = config['alignmentTask']['onto_target_filepath']
 onto_src_filepath_logmap = "file:" + config['alignmentTask']['onto_source_filepath']
 onto_tgt_filepath_logmap = "file:" + config['alignmentTask']['onto_target_filepath']
 
-# %% [markdown]
 # Instantiate a LogMapLLM interface to LogMap for the specified alignment task
-
-# %%
 logmap2_LogMapLLM_Interface = LogMapLLM_Interface(onto_src_filepath_logmap, 
                                                   onto_tgt_filepath_logmap, 
                                                   task_name)
 
-# %% [markdown]
 # Configure the LogMapLLM interface to LogMap for the initial alignment task
-
-# %%
 # boolean: True = generate extended m_ask, False = generate standard m_ask
 #generate_extended_m_ask = False
 generate_extended_m_ask = config['alignmentTask']['generate_extended_mappings_to_ask_oracle']
 logmap2_LogMapLLM_Interface.setExtendedQuestions4LLM(generate_extended_m_ask)
 
-# %%
+
 # Set dirpath where LogMap should look for its configuration file parameters.txt
 logmap_parameters_dirpath = config['alignmentTask']['logmap_parameters_dirpath']
 # If the user has configured a dirpath, we use that. Otherwise, we use the dirpath
 # for LogMap itself, which should contain a parameters.txt file.
 if logmap_parameters_dirpath == "" or logmap_parameters_dirpath is None:
     logmap_parameters_dirpath = logmap_dirpath
+
 # Ensure this particular dirpath ends with a directory separator character. Without 
 # it, LogMap can't find its parameters.txt file and reverts to its default parameter
 # settings. And it writes a message to stdout telling us about that. LogMap carries
@@ -198,25 +139,19 @@ if logmap_parameters_dirpath == "" or logmap_parameters_dirpath is None:
 # and the error message clutters LogMap-LLM's output.
 if not logmap_parameters_dirpath.endswith(os.sep):
     logmap_parameters_dirpath = logmap_parameters_dirpath + os.sep
+
 logmap2_LogMapLLM_Interface.setPathToLogMapParameters(logmap_parameters_dirpath)
 
-# %%
+
 # set a dir path into which LogMap will save its 
 # (an empty string means 'do not save any output files')
-
 #logmap_outputs_dir_path = '/Users/dave/research/logmap-usage/mappings1'
 #logmap_outputs_dir_path = ""
 logmap_outputs_dir_path = config['outputs']['logmap_initial_alignment_output_dirpath']
 logmap2_LogMapLLM_Interface.setPathForOutputMappings(logmap_outputs_dir_path)
 
-# %% [markdown]
-# ---
-# 
-# ## Begin LogMap-LLM session dialog with the user
-# 
-# ---
 
-# %%
+# Begin LogMap-LLM session dialog with the user
 
 print()
 print('LogMap-LLM session beginning')
@@ -230,14 +165,9 @@ print('Target ontology:')
 print(onto_tgt_filepath)
 
 
-# %% [markdown]
-# ---
-# 
-# ## pipeline step 1: Align Ontologies
-# 
-# ---
 
-# %%
+
+# - - - - - - - - - - - - - - STEP ONE - - - - - - - - - - - - - - -
 print()
 print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 print('Step 1: Align ontologies and obtain mappings to ask an Oracle')
@@ -283,14 +213,10 @@ if m_ask_df is not None:
     print()
     print(f"Number of mappings to ask an Oracle: {len(m_ask_df)}")
 
-# %% [markdown]
-# ---
-# 
-# ## pipeline step 2: Build Oracle Prompts
-# 
-# ---
 
-# %%
+
+
+# - - - - - - - - - - - - - - STEP TWO - - - - - - - - - - - - - - -
 print()
 print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 print('Step 2: Build user prompts for mappings to ask an LLM Oracle')
@@ -339,14 +265,9 @@ if config['pipeline']['build_oracle_prompts'] == 'build':
         json.dump(m_ask_oracle_user_prompts, fp)
 
 
-# %% [markdown]
-# ---
-# 
-# ## pipeline step 3: Consult Oracle
-# 
-# ---
 
-# %%
+
+# - - - - - - - - - - - - STEP THREE - - - - - - - - - - - -
 print()
 print('- - - - - - - - - - - - - - - - - - - - - - - - - - -')
 print("Step 3: Consult Oracle for mappings to ask")
@@ -356,7 +277,7 @@ print()
 oracle_params = {} # mpt oracle parameters (in case of branches)
 
 api_key = config['oracle']['openrouter_apikey']
-model_name = config['oracle']['openrouter_model_name']
+model_name = config['oracle']['model_name']
 base_url = config['oracle'].get('base_url', None)
 enable_thinking = config['oracle'].get('enable_thinking', None)
 interaction_style = config['oracle'].get('interaction_style', None)
@@ -368,12 +289,13 @@ developer_prompt_text = dp.get_developer_prompt(dev_prompt_name)
 
 # TODO: externalise max_workers in the config.toml file, so the user
 # has control without having to modify Python code
-max_workers = 2
+max_workers = config['oracle'].get('max_workers', 24)
 
 local_oracle_predictions_filepath = None
+local_oracle_predictions_dirpath = None
 
 if config['pipeline']['consult_oracle'] == 'consult':
-    model_name = config['oracle']['openrouter_model_name']
+    model_name = config['oracle']['model_name']
     print(f'Consulting LLM Oracle {model_name}')
     print('with user prompts for mappings to ask ...')
     print()
@@ -438,14 +360,9 @@ if config['pipeline']['consult_oracle'] == 'consult' and m_ask_df_ext is not Non
     m_ask_df_ext.to_csv(filepath)
 
 
-# %% [markdown]
-# ---
-# 
-# ## Pipeline step 4: Refine Alignment
-# 
-# ---
 
-# %%
+
+# - - - - - - - - - - - - - - - STEP FOUR - - - - - - - - - - - - - - -
 print()
 print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 print('Step 4: Refine alignment using Oracle mapping predictions')
@@ -484,12 +401,13 @@ elif config['pipeline']['refine_alignment'] == 'bypass':
 else:
     raise ValueError(f"Value for refine_alignment not recognised: {config['pipeline']['refine_alignment']}")
 
-# %% [markdown]
-# ---
-# 
-# ## Pipeline step 5: Reporting Metrics & Experimental Settings
-# 
-# ---
+
+# - - - - - - - - - - - - - - - STEP FIVE - - - - - - - - - - - - - -
+print()
+print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+print('Step 5: Reporting Metrics & Experimental Settings')
+print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+print()
 
 print(f"Experimental Settings:")
 
