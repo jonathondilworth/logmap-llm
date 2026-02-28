@@ -20,8 +20,8 @@ openrouter_apikey = 'EMPTY'
 enable_thinking = false
 interaction_style = 'vllm'
 
-#model_name = 'Qwen/Qwen3-235B-A22B-GPTQ-Int4'
-model_name = 'DeepSeek/DeepSeek-R1-Distill-Llama-70B'
+model_name = 'Qwen/Qwen3-235B-A22B-GPTQ-Int4'
+#model_name = 'DeepSeek/DeepSeek-R1-Distill-Llama-70B'
 #model_name = 'Qwen/Qwen3-32B'
 
 # TODO

@@ -5,6 +5,8 @@
 # at the command line and it does everything for you, writing its
 # output to the console.
 
+from __future__ import annotations
+
 import sys
 import os
 import os.path
@@ -43,6 +45,8 @@ from log_utils import (
     step,
     success,
 )
+
+from typing import Any
 
 # PREP JAVA MODULES & LOAD INTO GLOBAL NS
 
@@ -133,6 +137,20 @@ def inspect_and_mask_api_key(key: str) -> str:
         return key
     # else
     return f"{key[:4]} ... {key[-4:]}" if len(key) > 8 else "***"
+
+
+
+def parse_config_into_list(config_dict: dict, key_prefix: str = "") -> list[tuple[str, Any]]:
+    # base case (when we arrive at a leaf node, i.e., a non-dict)
+    if not isinstance(config_dict, dict):
+        return [(key_prefix, config_dict)]
+    kv_config_pairs = []
+    for key, value in config_dict.items():
+        extended_key = f"{key_prefix}.{key}" if key_prefix else key
+        # recursive call
+        kv_config_pairs.extend(parse_config_into_list(value, extended_key))
+    return kv_config_pairs
+
 
 
 
@@ -246,8 +264,10 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+
+
 #
-# MANAGE CONFIG
+# MANAGE (LOAD & VALIDATE) CONFIG
 #
 
 config_path = args.config
@@ -257,6 +277,20 @@ cfg = load_and_validate_config(
     reuse_align=args.reuse_align,
     reuse_prompts=args.reuse_prompts
 )
+
+
+
+#
+# PRINT EXP PARAMS (REPLACES LARGE SET OF MANUAL PRINT STATEMENTS)
+#
+
+flat_config_params: list = parse_config_into_list(cfg.model_dump())
+expr_params_str: str = "\n\nSummary of Experiment Parameters:\n\n"
+for key, value in flat_config_params:
+    expr_params_str += f"{key}: {value}\n"
+info(expr_params_str)
+
+
 
 #
 # MANAGE PATH EXPECTATIONS
@@ -268,31 +302,15 @@ os.makedirs(run_paths.output_dir, exist_ok=True)
 os.makedirs(run_paths.initial_dir, exist_ok=True)
 os.makedirs(run_paths.refined_dir, exist_ok=True)
 
-run_paths.summary()
+run_path_summary = run_paths.summary()
+
+info(f"\n\nSummary of File Paths:\n\n{run_path_summary}\n\n")
+
+
 
 #
-# PRINT EXPERIMENTAL SETTINGS
+# INITIALISE LOGMAP
 #
-
-print(f"task name: {cfg.alignmentTask.task_name}")
-print(f"onto source: {cfg.alignmentTask.onto_source_filepath}")
-print(f"onto target: {cfg.alignmentTask.onto_target_filepath}")
-print(f"extended mappings_to_ask: {cfg.alignmentTask.generate_extended_mappings_to_ask_oracle}")
-print(f"logmap_parameters_dirpath: {cfg.alignmentTask.logmap_parameters_dirpath}")
-print()
-print(f"openrouter apikey: {inspect_and_mask_api_key(cfg.oracle.openrouter_apikey)}")
-print(f"openrouter LLM model name: {cfg.oracle.model_name}")
-print(f"oracle dev prompt template: {cfg.oracle.oracle_dev_prompt_template_name}")
-print(f"oracle user prompt template: {cfg.oracle.oracle_user_prompt_template_name}")
-print()
-print(f"logmapllm output dirpath: {cfg.outputs.logmapllm_output_dirpath}")
-print(f"logmap initial alignment output dirpath: {cfg.outputs.logmap_initial_alignment_output_dirpath}")
-print(f"logmap refined alignment output dirpath: {cfg.outputs.logmap_refined_alignment_output_dirpath}")
-print()
-print(f"align ontologies: {cfg.pipeline.align_ontologies}")
-print(f"build oracle prompts: {cfg.pipeline.build_oracle_prompts}")
-print(f"consult oracle: {cfg.pipeline.consult_oracle}")
-print(f"refine alignment: {cfg.pipeline.refine_alignment}")
 
 # TODO: decide the best way to set the logmap_dirpath
 logmap_dirpath = os.path.join(os.getcwd(), 'logmap')
@@ -312,105 +330,112 @@ logmap.set_output_dir(run_paths.initial_dir)
 
 # Begin LogMap-LLM session dialog with the user
 
-print('LogMap-LLM session beginning')
+info('LogMap-LLM session beginning')
 
 
-# - - - - - - - - - - - - - - STEP ONE - - - - - - - - - - - - - - -
-print()
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print('Step 1: Align ontologies and obtain mappings to ask an Oracle')
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print()
 
+#
+# STEP ONE: align ontologies and obtain mappings to ask an Oracle
+#
 
-if cfg.pipeline.align_ontologies == AlignMode.ALIGN:
+step(
+    enumeration=1,
+    msg="Align ontologies and obtain mappings to ask an Oracle"
+)
 
-    # perform an initial alignment so we can get a fresh m_ask
-    print("Performing fresh initial LogMap alignment ...")
-    print()
-    logmap.perform_alignment()
-    print("Initial alignment complete")
-    mappings = logmap.get_mappings()
-    print()
-    print(f'Number of mappings in initial alignment: {len(mappings)}')
-    m_ask_java = logmap.get_mappings_for_llm()
-    m_ask_df = br.java_mappings_2_python(m_ask_java)
+match(cfg.pipeline.align_ontologies):
 
-elif cfg.pipeline.align_ontologies == AlignMode.REUSE:
+    case AlignMode.ALIGN:
+        step("Performing fresh initial LogMap alignment", 1)
+        logmap.perform_alignment()
+        mappings = logmap.get_mappings()
+        step(f"Number of mappings in initial alignment: {len(mappings)}", 1)
+        m_ask_java = logmap.get_mappings_for_llm()
+        m_ask_df = br.java_mappings_2_python(m_ask_java)
+        success("Initial alignment complete")
 
-    # Reusing existing initial LogMap alignment ...
-    mappings = pd.read_csv(run_paths.logmap_mappings(), sep=PAIRS_SEPARATOR, header=None)
-    print(f'Number of mappings in initial alignment: {len(mappings)}')
+    case AlignMode.REUSE:
+        mappings = pd.read_csv(run_paths.logmap_mappings(), sep=PAIRS_SEPARATOR, header=None)
+        step(f"Number of mappings in initial alignment: {len(mappings)}", 1)
+        m_ask_df = pd.read_csv(run_paths.logmap_m_ask(), sep=PAIRS_SEPARATOR, header=None)
+        step(f"Loading mappings to ask an oracle from file: {run_paths.logmap_m_ask()}", 1)
+        m_ask_df.columns = br.get_m_ask_column_names()
+        success("Loaded and reusing initial alignment")
 
-    print('Loading mappings to ask an Oracle from file:')
-    m_ask_df = pd.read_csv(run_paths.logmap_m_ask(), sep=PAIRS_SEPARATOR, header=None)
-    m_ask_df.columns = br.get_m_ask_column_names()
+    case AlignMode.BYPASS:
+        m_ask_df = None
+        warning("Bypassing initial LogMap alignment")
 
-elif cfg.pipeline.align_ontologies == AlignMode.BYPASS:
-
-    print('Bypassing initial LogMap alignment')
-    m_ask_df = None
-
-else:
-    raise ValueError(f"Value for align_ontologies not recognised: {cfg.pipeline.align_ontologies}")
+    case _:
+         error("Something went wrong!")
+         error("The alignment step fell through to the default case.")
+         raise ValueError(
+            f"config: align_ontologies param not recognised: "
+            + cfg.pipeline.align_ontologies
+        )
 
 if m_ask_df is not None:
-    print()
-    print(f"Number of mappings to ask an Oracle: {len(m_ask_df)}")
+    success(f"Number of mappings to ask an Oracle: {len(m_ask_df)}")
 
 
 
+#
+# STEP TWO: build user prompts for oracle consultation
+#
 
-# - - - - - - - - - - - - - - STEP TWO - - - - - - - - - - - - - - -
-print()
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print('Step 2: Build user prompts for mappings to ask an LLM Oracle')
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print()
+step(
+    enumeration=2,
+    msg="Build user prompts for oracle consultation"
+)
 
-oupt_name = cfg.oracle.oracle_user_prompt_template_name
+m_ask_oracle_user_prompts = None # deals with pipeline branch paths
 
-if cfg.pipeline.build_oracle_prompts == PromptBuildMode.BUILD:
-    print('Building fresh Oracle user prompts ...')
-    print()
-    m_ask_oracle_user_prompts = opb.build_oracle_user_prompts(oupt_name,
-                                                              cfg.alignmentTask.onto_source_filepath,
-                                                              cfg.alignmentTask.onto_target_filepath,
-                                                              m_ask_df)
+match(cfg.pipeline.build_oracle_prompts):
 
-elif cfg.pipeline.build_oracle_prompts == PromptBuildMode.REUSE:
+    case PromptBuildMode.BUILD:
+        step("Building fresh oracle user prompts", 2)
+        m_ask_oracle_user_prompts = opb.build_oracle_user_prompts(cfg.oracle.oracle_user_prompt_template_name,
+                                                                  cfg.alignmentTask.onto_source_filepath,
+                                                                  cfg.alignmentTask.onto_target_filepath,
+                                                                  m_ask_df)
+        success("User prompts built!")
+        
+    case PromptBuildMode.REUSE:
+        step(f"Loading LLM oracle user prompts from file: {str(run_paths.prompts_json())}", 2)
+        with open(run_paths.prompts_json(), 'r') as fp:
+            m_ask_oracle_user_prompts = json.load(fp)
+        success(f"User prompts reloaded from: {str(run_paths.prompts_json())}")
+        
+    case PromptBuildMode.BYPASS:
+        m_ask_oracle_user_prompts = None
+        warning(f"Bypassing use of LLM oracle user prompts")
 
-    # Reusing existing LLM Oracle user prompts ...created previously and saved in a file on disk
-    print(f'Loading LLM Oracle user prompts from file: {str(run_paths.prompts_json())}')
-    with open(run_paths.prompts_json(), 'r') as fp:
-        m_ask_oracle_user_prompts = json.load(fp)
-
-elif cfg.pipeline.build_oracle_prompts == PromptBuildMode.BYPASS:
-    print('Bypassing use of LLM Oracle user prompts')
-    m_ask_oracle_user_prompts = None
-
-else:
-    raise ValueError(f"Value for build_oracle_prompts not recognised: {cfg.pipeline.build_oracle_prompts}")
+    case _:
+        error("Something went wrong!")
+        error("The prompt building step fell through to the default case.")
+        raise ValueError(
+            f"config: build_oracle_prompts param not recognised: "
+            + cfg.pipeline.build_oracle_prompts
+        )
 
 if m_ask_oracle_user_prompts is not None:
-    print()
-    print(f"Number of LLM Oracle user prompts obtained: {len(m_ask_oracle_user_prompts)}")
-    print()
+    success(f"Number of LLM oracle user prompts: {len(m_ask_oracle_user_prompts)}")
 
 if cfg.pipeline.build_oracle_prompts == PromptBuildMode.BUILD:
-    # save the newly built oracle user prompts to a .json file so they can be reused
-    print(f'LLM Oracle user prompts saved to file: {str(run_paths.prompts_json())}')
     with open(run_paths.prompts_json(), 'w') as fp:
         json.dump(m_ask_oracle_user_prompts, fp)
+    success(f"LLM oracle user prompts saved to file: {str(run_paths.prompts_json())}")
 
 
 
-# - - - - - - - - - - - - STEP THREE - - - - - - - - - - - -
-print()
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print("Step 3: Consult Oracle for mappings to ask")
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print()
+#
+# STEP THREE: consult oracle for mappings to ask
+#
+
+step(
+    enumeration=3,
+    msg="Consult Oracle for mappings to ask"
+)
 
 # empty initialisations (for linting)
 oracle_outcome = OracleOutcome()
@@ -421,47 +446,56 @@ oracle_params = {}
 dev_prompt_template = dp.get_developer_prompt(cfg.oracle.oracle_dev_prompt_template_name)
 
 
-if cfg.pipeline.consult_oracle == ConsultMode.CONSULT:
+match(cfg.pipeline.consult_oracle):
 
-    print(f'Consulting LLM Oracle {cfg.oracle.model_name}')
-    m_ask_df_ext, oracle_params = oc.consult_oracle_for_mappings_to_ask(
-        m_ask_oracle_user_prompts,
-        api_key=cfg.oracle.openrouter_apikey,
-        model_name=cfg.oracle.model_name,
-        max_workers=cfg.oracle.max_workers,
-        m_ask_df=m_ask_df,
-        base_url=cfg.oracle.base_url,
-        enable_thinking=cfg.oracle.enable_thinking,
-        interaction_style=cfg.oracle.interaction_style,
-        developer_prompt_text=dev_prompt_template
-    )
-    oracle_outcome = OracleOutcome(predictions=m_ask_df_ext)
+    case ConsultMode.CONSULT:
+        step(f"Consulting LLM oracle with model: {cfg.oracle.model_name}", 3)
+        m_ask_df_ext, oracle_params = oc.consult_oracle_for_mappings_to_ask(
+            m_ask_oracle_user_prompts,
+            api_key=cfg.oracle.openrouter_apikey,
+            model_name=cfg.oracle.model_name,
+            max_workers=cfg.oracle.max_workers,
+            m_ask_df=m_ask_df,
+            base_url=cfg.oracle.base_url,
+            enable_thinking=cfg.oracle.enable_thinking,
+            interaction_style=cfg.oracle.interaction_style,
+            developer_prompt_text=dev_prompt_template
+        )
+        oracle_outcome = OracleOutcome(predictions=m_ask_df_ext)
+        success("Oracle consultation complete!")
 
-elif cfg.pipeline.consult_oracle == ConsultMode.REUSE:
+    case ConsultMode.REUSE:
+        step(f'Loading LLM oracle predictions for the mappings_to_ask from file: {run_paths.predictions_csv()}', 3)
+        m_ask_df_ext = pd.read_csv(run_paths.predictions_csv())
+        oracle_outcome = OracleOutcome(predictions=m_ask_df_ext)
+        success("Loaded oracle predictions (from M_ask)!")
 
-    # Reusing existing LLM Oracle predictions created previously and saved in a file on disk
-    print(f'Loading LLM Oracle predictions for the mappings_to_ask from file: {run_paths.predictions_csv()}')
-    m_ask_df_ext = pd.read_csv(run_paths.predictions_csv())
-    oracle_outcome = OracleOutcome(predictions=m_ask_df_ext)
+    case ConsultMode.LOCAL:
+        step(f'Local oracle prediction .csv file(s) will be loaded from directory: {cfg.oracle.local_oracle_predictions_dirpath}', 3)
+        oracle_outcome = OracleOutcome(
+            local_dir=cfg.oracle.local_oracle_predictions_dirpath,
+            predictions=None
+        )
+        m_ask_df_ext = None
+        success("Loaded oracle predictions (from CSV)!")
 
-elif cfg.pipeline.consult_oracle == ConsultMode.LOCAL:
+    case ConsultMode.BYPASS:
+        warning('Bypassing oracle consultations')
+        oracle_outcome = OracleOutcome(predictions=None)
+        m_ask_df_ext = None
 
-    print(f'Local Oracle prediction .csv file(s) will be loaded from directory: {cfg.oracle.local_oracle_predictions_dirpath}')
-    oracle_outcome = OracleOutcome(
-        local_dir=cfg.oracle.local_oracle_predictions_dirpath,
-        predictions=None
-    )
-    m_ask_df_ext = None
+    case _:
+        error("Something went wrong!")
+        error("The oracle consultation step fell through to the default case.")
+        raise ValueError(
+            f"config: consult_oracle param not recognised: "
+            + cfg.pipeline.consult_oracle
+        )
 
-elif cfg.pipeline.consult_oracle == ConsultMode.BYPASS:
-
-    print('Bypassing Oracle consultations')
-    oracle_outcome = OracleOutcome(predictions=None)
-    m_ask_df_ext = None
-
-else:
-    raise ValueError(f"Value for consult_oracle not recognised: {cfg.pipeline.consult_oracle}")
-
+if cfg.pipeline.consult_oracle == ConsultMode.CONSULT and m_ask_df_ext is not None:
+    # save the extended m_ask dataframe (that contains the LLM Oracle predictions)
+    m_ask_df_ext.to_csv(run_paths.predictions_csv())
+    success(f"Oracle predictions for 'mappings to ask' saved to file: {run_paths.predictions_csv()}")
 
 if m_ask_df_ext is not None:
     preds = m_ask_df_ext['Oracle_prediction']
@@ -474,88 +508,92 @@ if m_ask_df_ext is not None:
     nr_true = str(nr_true).rjust(width)
     nr_false = str(nr_false).rjust(width)
     nr_errors = str(nr_errors).rjust(width)
-    print()
-    print(f"Number of mappings to ask an Oracle: {nr_mappings}")
-    print(f"Number of LLM Oracle consultations : {nr_completions}")
-    print(f"Number of mappings predicted True  : {nr_true}")
-    print(f"Number of mappings predicted False : {nr_false}")
-    print(f"Number of consultation failures    : {nr_errors}")
-    print()
-
-if cfg.pipeline.consult_oracle == ConsultMode.CONSULT and m_ask_df_ext is not None:
-
-    # save the extended m_ask dataframe (that contains the LLM Oracle predictions)
-    print(f"Oracle predictions for 'mappings to ask' saved to file: {run_paths.predictions_csv()}")
-    m_ask_df_ext.to_csv(run_paths.predictions_csv())
+    info(f"Number of mappings to ask an Oracle: {nr_mappings}")
+    info(f"Number of LLM Oracle consultations : {nr_completions}")
+    info(f"Number of mappings predicted True  : {nr_true}")
+    info(f"Number of mappings predicted False : {nr_false}")
+    info(f"Number of consultation failures    : {nr_errors}\n")
 
 
-# - - - - - - - - - - - - - - - STEP FOUR - - - - - - - - - - - - - - -
-print()
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print('Step 4: Refine alignment using Oracle mapping predictions')
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print()
+
+#
+# STEP FOUR: refine alignment using racle mapping predictions
+#
+
+step(
+    enumeration=4,
+    msg="refine alignment using oracle mapping predictions"
+)
 
 logmap.set_output_dir(run_paths.refined_dir)
 
-if cfg.pipeline.refine_alignment == RefineMode.REFINE:
+match(cfg.pipeline.refine_alignment):
 
-    if oracle_outcome.has_predictions:
-        info("Refining initial LogMap alignment with LLM Oracle predictions ...")
-        preds_java = br.python_oracle_mapping_predictions_2_java(oracle_outcome.predictions)
-        info(f'Number of mappings predicted True by Oracle given to LogMap: {len(preds_java)}')
-        logmap.refine_alignment(preds_java)
-        success("Alignment refinement complete")
-        mappings_java = logmap.get_mappings()
-        info(f'Number of mappings in LogMap refined alignment: {len(mappings_java)}')
+    case RefineMode.REFINE:
+        if oracle_outcome.has_predictions:
+            step("Refining initial LogMap alignment with LLM Oracle predictions", 4)
+            preds_java = br.python_oracle_mapping_predictions_2_java(oracle_outcome.predictions)
+            step(f'Number of mappings predicted True by Oracle given to LogMap: {len(preds_java)}', 4)
+            logmap.refine_alignment(preds_java)
+            mappings_java = logmap.get_mappings()
+            step(f'Number of mappings in LogMap refined alignment: {len(mappings_java)}', 4)
+            success("Alignment refinement complete")
 
-    elif oracle_outcome.is_local:
-        info("Refining initial LogMap alignment with local Oracle predictions ...")
-        logmap.refine_alignment(str(oracle_outcome.local_dir))
-        success("Alignment complete")
-        mappings_java = logmap.get_mappings()
-        info(f'Number of mappings in LogMap refined alignment: {len(mappings_java)}')
+        elif oracle_outcome.is_local:
+            step("Refining initial LogMap alignment with local Oracle predictions", 4)
+            logmap.refine_alignment(str(oracle_outcome.local_dir))
+            mappings_java = logmap.get_mappings()
+            step(f'Number of mappings in LogMap refined alignment: {len(mappings_java)}', 4)
+            success("Alignment refinement complete")
 
-    else:
-        warning('Step 4 bypassed due to Oracle consultation failures in Step 3')
+        else:
+            critical("Check your config to ensure 'refine_alignment' is set appropriately!")
+            critical("The oracle response is empty and no local predictions file is specified.")
+            critical("This could result in a problem!")
 
-elif cfg.pipeline.refine_alignment == RefineMode.BYPASS:
-    info('Bypassing alignment refinement')
+    case RefineMode.BYPASS:
+        warning("Bypassing alignment refinement")
 
-else:
-    raise ValueError(f"Value for refine_alignment not recognised: {cfg.pipeline.refine_alignment}")
+    case _:
+        error("Something went wrong!")
+        error("The refine alignment step fell through to the default case.")
+        raise ValueError(
+            f"config: refine_alignment param not recognised: "
+            + cfg.pipeline.refine_alignment
+        )
 
 
-# - - - - - - - - - - - - - - - STEP FIVE - - - - - - - - - - - - - -
+#
+# STEP FIVE: reporting metrics, results, and experimental settings
+#
+
+step(
+    enumeration=5,
+    msg="reporting metrics, results, and experimental settings"
+)
+
+step(f"Experimental Settings:", 5)
+step(f"[PARAM] Model Name: {cfg.oracle.model_name}", 5)
+step(f"[PARAM] Interaction Style: {cfg.oracle.interaction_style}", 5)
+step(f"[PARAM] M_ask (LLM) Temp: {cfg.oracle.temperature}", 5)
+step(f"[PARAM] M_ask (LLM) Top-p: {cfg.oracle.top_p}", 5)
+step(f"[PARAM] M_ask (LLM) Reasoning Effort: {cfg.oracle.reasoning_effort}", 5)
+step(f"[PARAM] Max Tokens: {cfg.oracle.max_completion_tokens}", 5)
+step(f"[PARAM] Thinking Enabled: {cfg.oracle.enable_thinking}", 5)
+step(f"[PARAM] Max Worker Threads: {cfg.oracle.max_workers}", 5)
+step(f"[PARAM] Base URL: {cfg.oracle.base_url}", 5)
+step(f"[PARAM] Developer Prompt Specified: {cfg.oracle.oracle_dev_prompt_template_name}", 5)
+step(f"[PARAM] User Prompt Template Specified: {cfg.oracle.oracle_user_prompt_template_name}", 5)
+step("------------------------------------------", 5)
+step(f'Alignment task name: {cfg.alignmentTask.task_name}', 5)
+step(f"Source ontology: {cfg.alignmentTask.onto_source_filepath}", 5)
+step(f"Target ontology: {cfg.alignmentTask.onto_target_filepath}", 5)
+step("------------------------------------------", 5)
+step("EVALUATION:", 5) # TODO: convert manual conversion script/s into end-to-end logmap-llm
+step("------------------------------------------", 5)
+
 print()
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
-print('Step 5: Reporting Metrics & Experimental Settings')
-print('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
 print()
 
-print(f"Experimental Settings:")
+success("LogMap-LLM session ending")
 
-print(f"[PARAM] Model Name: {cfg.oracle.model_name}")
-print(f"[PARAM] Interaction Style: {cfg.oracle.interaction_style}")
-print(f"[PARAM] M_ask (LLM) Temp: {cfg.oracle.temperature}")
-print(f"[PARAM] M_ask (LLM) Top-p: {cfg.oracle.top_p}")
-print(f"[PARAM] M_ask (LLM) Reasoning Effort: {cfg.oracle.reasoning_effort}")
-print(f"[PARAM] Max Tokens: {cfg.oracle.max_completion_tokens}")
-print(f"[PARAM] Thinking Enabled: {cfg.oracle.enable_thinking}")
-print(f"[PARAM] Max Worker Threads: {cfg.oracle.max_workers}")
-print(f"[PARAM] Base URL: {cfg.oracle.base_url}")
-print(f"[PARAM] Developer Prompt Specified: {cfg.oracle.oracle_dev_prompt_template_name}")
-print(f"[PARAM] User Prompt Template Specified: {cfg.oracle.oracle_user_prompt_template_name}")
-print("------------------------------------------")
-print(f'Alignment task name: {cfg.alignmentTask.task_name}')
-print(f"Source ontology: {cfg.alignmentTask.onto_source_filepath}")
-print(f"Target ontology: {cfg.alignmentTask.onto_target_filepath}")
-print("------------------------------------------")
-print("EVALUATION:") # TODO: convert manual conversion script/s into end-to-end logmap-llm
-print("------------------------------------------")
-
-# %%
-
-print()
-print('LogMap-LLM session ending')
-print()
