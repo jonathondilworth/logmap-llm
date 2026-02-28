@@ -4,6 +4,7 @@ between the worlds of Python and Java.
 '''
 
 import pandas as pd
+from pathlib import Path
 from constants import (
     EntityType,
     EntityRelation,
@@ -12,7 +13,8 @@ from constants import (
     COL_RELATION,
     COL_CONFIDENCE,
     COL_ENTITY_TYPE,
-    M_ASK_COLUMNS
+    M_ASK_COLUMNS,
+    PAIRS_SEPARATOR
 )
 
 # These import statements presume that JPype has been imported
@@ -150,6 +152,12 @@ def get_m_ask_column_names():
   """returns a list copy of column tuple from constants.py"""
   return list(M_ASK_COLUMNS)
 
+
+def load_m_ask_from_file(filepath: Path) -> pd.DataFrame:
+    """Load a LogMap m_ask file (headerless, pipe-delimited) into a named DataFrame."""
+    df = pd.read_csv(filepath, sep=PAIRS_SEPARATOR, header=None)
+    df.columns = get_m_ask_column_names()
+    return df
 
 
 

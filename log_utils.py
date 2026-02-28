@@ -1,6 +1,8 @@
 import re
 import sys
 
+from typing import NoReturn
+
 # default:
 _RESET = "\033[0m"
 
@@ -41,12 +43,17 @@ def info(msg: str) -> None:
 
 
 def step(msg: str, enumeration:int|None = None) -> None:
-    step_enumeratin = (f" {str(enumeration)}") if enumeration is not None else ""
-    print(f"{_PASTEL_BLUE}[STEP{step_enumeratin}] {msg}{_RESET}")
+    step_enumeration = (f" {str(enumeration)}") if enumeration is not None else ""
+    print(f"{_PASTEL_BLUE}[STEP{step_enumeration}] {msg}{_RESET}")
 
 
 def success(msg: str) -> None:
     print(f"{_GREEN}[COMPLETE] {msg}{_RESET}")
+
+
+def fatal(msg: str, exception_cls: type[Exception] = ValueError) -> NoReturn:
+    error(msg)
+    raise exception_cls(msg)
 
 
 class TeeWriter:
