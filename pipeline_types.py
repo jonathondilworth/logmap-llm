@@ -10,7 +10,9 @@ import pandas as pd
 
 @dataclass
 class AlignmentResult:
-    """Produced by Step 1, consumed by Steps 2 and 3."""
+    """
+    Docstring for AlignmentResult
+    """
     m_ask_df: pd.DataFrame | None = None
     mappings: pd.DataFrame | None = None
     
@@ -25,7 +27,9 @@ class AlignmentResult:
 
 @dataclass
 class PromptBuildResult:
-    """Produced by Step 2, consumed by Step 3."""
+    """
+    Docstring for PromptBuildResult
+    """
     prompts: dict | None = None
     
     @property
@@ -35,7 +39,9 @@ class PromptBuildResult:
 
 @dataclass
 class OracleResult:
-    """Produced by Step 3, consumed by Step 4."""
+    """
+    Docstring for OracleResult
+    """
     predictions: pd.DataFrame | None = None
     oracle_params: dict = field(default_factory=dict)
     local_dir: str | Path | None = None
@@ -48,10 +54,37 @@ class OracleResult:
     def is_local(self) -> bool:
         return self.local_dir is not None
 
+    def prediction_summary(self) -> str | None:
+        """
+        Docstring for prediction_summary
+
+        :param self: Description
+        :return: Description
+        :rtype: str | None
+        """
+        if self.predictions is None:
+            return None
+        preds = self.predictions['Oracle_prediction']
+        n = len(preds)
+        n_err = int(sum(preds == 'error'))
+        n_true = int(sum(preds == True))
+        n_false = int(sum(preds == False))
+        w = len(str(n))
+        lines = [
+            f"Mappings to ask an Oracle : {n}",
+            f"LLM Oracle consultations  : {n - n_err}",
+            f"Predicted True            : {str(n_true).rjust(w)}",
+            f"Predicted False           : {str(n_false).rjust(w)}",
+            f"Consultation failures     : {str(n_err).rjust(w)}",
+        ]
+        return "\n".join(lines)
+
 
 @dataclass
 class RefinementResult:
-    """Produced by Step 4, consumed by Step 5."""
+    """
+    Docstring for RefinementResult
+    """
     refined_mappings: pd.DataFrame | None = None
 
     @property

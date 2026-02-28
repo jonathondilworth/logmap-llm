@@ -90,3 +90,13 @@ def parse_config_into_list(config_dict: dict, key_prefix: str = "") -> list[tupl
         # recursive call
         kv_config_pairs.extend(parse_config_into_list(value, extended_key))
     return kv_config_pairs
+
+
+def print_config_summary(cfg: LogMapLLMConfig):
+    flat_config_params: list = parse_config_into_list(cfg.model_dump())
+    expr_params_str: str = "\n\nSummary of Experiment Parameters:\n\n"
+    for key, value in flat_config_params:
+        if key == "oracle.openrouter_apikey":
+            value = inspect_and_mask_api_key(value)
+        expr_params_str += f"{key}: {value}\n"
+    info(expr_params_str)
