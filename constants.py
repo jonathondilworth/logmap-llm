@@ -9,7 +9,6 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 
-
 class BinaryOutputFormat(BaseModel):
     answer: bool
 
@@ -64,4 +63,63 @@ class EntityRelation(Enum):
     EQUIVALENCE = '='
 
 
+class AlignMode(str, Enum):
+    '''
+    Constants (Enums) for pipeline (modes)
+    Step One: align ontologies
+    '''
+    ALIGN = 'align'
+    REUSE = 'reuse'
+    BYPASS = 'bypass'
 
+
+class PromptBuildMode(str, Enum):
+    '''
+    Constants (Enums) for pipeline (modes)
+    Step Two: build prompts
+    '''
+    BUILD = 'build'
+    REUSE = 'reuse'
+    BYPASS = 'bypass'
+
+
+class ConsultMode(str, Enum):
+    '''
+    Constants (Enums) for pipeline (modes)
+    Step Three: consult oracle
+    '''
+    CONSULT = 'consult'
+    REUSE = 'reuse'
+    LOCAL = 'local'
+    BYPASS = 'bypass'
+
+
+class RefineMode(str, Enum):
+    '''
+    Constants (Enums) for pipeline (modes)
+    Step Four: refine alignments with M_{ask} responses
+    '''
+    REFINE = 'refine'
+    BYPASS = 'bypass'
+
+
+'''
+Constants for use within bridging (Python <-> Java (LogMap))
+'''
+COL_SOURCE_ENTITY_URI   = 'source_entity_uri'
+COL_TARGET_ENTITY_URI   = 'target_entity_uri'
+COL_RELATION            = 'relation'
+COL_CONFIDENCE          = 'confidence'
+COL_ENTITY_TYPE         = 'entityType'
+
+
+'''
+Key _mappings_ for bridging (Python <-> Java (LogMap))
+'''
+M_ASK_COLUMNS = (
+    COL_SOURCE_ENTITY_URI,
+    COL_TARGET_ENTITY_URI,
+    COL_RELATION,
+    COL_CONFIDENCE,
+    COL_ENTITY_TYPE,
+)

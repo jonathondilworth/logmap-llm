@@ -3,13 +3,17 @@ This module contains functionality that supports bridging
 between the worlds of Python and Java.
 '''
 
-#%% Python imports
-
 import pandas as pd
-from constants import EntityType, EntityRelation
-
-
-#%% Java imports
+from constants import (
+    EntityType,
+    EntityRelation,
+    COL_SOURCE_ENTITY_URI,
+    COL_TARGET_ENTITY_URI,
+    COL_RELATION,
+    COL_CONFIDENCE,
+    COL_ENTITY_TYPE,
+    M_ASK_COLUMNS
+)
 
 # These import statements presume that JPype has been imported
 # and used to start a JVM (Java Virtual Machine) that has
@@ -21,13 +25,12 @@ from uk.ac.ox.krr.logmap2.mappings.objects import MappingObjectStr
 from java.util import HashSet
 
 
-#%% Column names
-
-column_source_entity_uri = 'source_entity_uri'
-column_target_entity_uri = 'target_entity_uri'
-column_relation = 'relation'
-column_confidence = 'confidence'
-column_entityType = 'entityType'
+# column names
+COL_SOURCE_ENTITY_URI = 'source_entity_uri'
+COL_TARGET_ENTITY_URI = 'target_entity_uri'
+COL_RELATION = 'relation'
+COL_CONFIDENCE = 'confidence'
+COL_ENTITY_TYPE = 'entityType'
 
 
 #%% Entity type representations
@@ -50,8 +53,7 @@ entityType_int_2_str = {0: EntityType.CLASS.value,
 entityType_str_2_int = {et_str: et_int for et_int, et_str in entityType_int_2_str.items()}
 
 
-#%% Relation representations
-
+# Relation representations
 # LogMap recognises 3 relations in its <MappingObjectStr> objects,
 # each one represented by a particular integer. The LogMap m_ask 
 # output file uses string representations for the 3 relations.
@@ -71,8 +73,12 @@ relation_int_2_str = { 0: EntityRelation.SUBCLASSOF.value,
 # map for str 2 int
 relation_str_2_int = {r_str: r_int for r_int, r_str in relation_int_2_str.items()}
 
-
-#%%
+'''
+entityType_int_2_str: {0: 'CLS', 1: 'DPROP', 2: 'OPROP', 3: 'INST', 4: 'UNKNO'}
+entityType_str_2_int: {'CLS': 0, 'DPROP': 1, 'OPROP': 2, 'INST': 3, 'UNKNO': 4}
+relation_int_2_str: {0: '<', -1: '>', -2: '='}
+relation_str_2_int: {'<': 0, '>': -1, '=': -2}
+'''
 
 def java_mappings_2_python(m_ask_java):
     '''
@@ -129,31 +135,23 @@ def java_mappings_2_python(m_ask_java):
         entityTypes.append(entityType)
     
     # assemble the columns of mapping elements into a DataFrame
-    m_ask_df = pd.DataFrame(data={column_source_entity_uri: src_entity_uris,
-                                  column_target_entity_uri: tgt_entity_uris,
-                                  column_relation: relations,
-                                  column_confidence: confidences,
-                                  column_entityType: entityTypes})
+    m_ask_df = pd.DataFrame(data={COL_SOURCE_ENTITY_URI: src_entity_uris,
+                                  COL_TARGET_ENTITY_URI: tgt_entity_uris,
+                                  COL_RELATION: relations,
+                                  COL_CONFIDENCE: confidences,
+                                  COL_ENTITY_TYPE: entityTypes})
     
     return m_ask_df
 
 
-#%%
+
 
 def get_m_ask_column_names():
-
-  column_names = [
-      column_source_entity_uri,
-      column_target_entity_uri,
-      column_relation,
-      column_confidence,
-      column_entityType
-  ]
-
-  return column_names
+  """returns a list copy of column tuple from constants.py"""
+  return list(M_ASK_COLUMNS)
 
 
-#%%
+
 
 def python_oracle_mapping_predictions_2_java(m_ask_df_ext):
     '''
